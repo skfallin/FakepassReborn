@@ -1,0 +1,48 @@
+@import CommonCrypto;
+@import Foundation;
+
+#import <FrontBoardServices/FBSSystemService.h>
+#import <SpringBoardServices/SBSRelaunchAction.h>
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+NS_RETURNS_RETAINED NSString *generateHashFor(NSString *input, NSString *salt) {
+    if (!input || !salt) return nil;
+    NSString *salted = [NSMutableString stringWithFormat:@"%@%@", input, salt];
+    const char *str = salted.UTF8String;
+    unsigned char hash[CC_SHA512_DIGEST_LENGTH];
+    CC_SHA512(str, strlen(str), hash);
+
+    NSMutableString *hexHash = [NSMutableString stringWithCapacity:CC_SHA512_DIGEST_LENGTH * 2];
+    for (int i = 0; i < CC_SHA512_DIGEST_LENGTH; i++) {
+        [hexHash appendFormat:@"%02x", hash[i]];
+    }
+
+    return hexHash;
+}
+
+NS_RETURNS_RETAINED NSString *generateSalt() {
+    NSMutableString *salt = [NSMutableString stringWithCapacity:128];
+    for (int i = 0; i < 64; i++) {
+        unsigned char rand = arc4random_uniform(256);
+        [salt appendFormat:@"%02x", rand];
+    }
+    return salt;
+}
+
+void respringAndReturnTo(NSURL *targetURL) {
+    SBSRelaunchAction *restartAction = [SBSRelaunchAction actionWithReason:@"RestartRenderServer" options:SBSRelaunchActionOptionsFadeToBlackTransition targetURL:targetURL];
+    [[FBSSystemService sharedService] sendActions:[NSSet setWithObject:restartAction] withResult:nil];
+}
+
+void respring() {
+    respringAndReturnTo(nil);
+}
+
+#ifdef __cplusplus
+}
+#endif
+
+/* vim: set ft=objc: */
