@@ -45,7 +45,7 @@ Use this only on the configuration above, with **no native iOS passcode**. First
 For an SSH installation, after installing the dependencies and uploading the `.deb` to the phone, run **on the iPhone**:
 
 ```sh
-sudo dpkg -i ./com.skfallin.fakepassreborn_0.1.0~beta1_iphoneos-arm64.deb
+sudo dpkg -i ./com.skfallin.fakepassreborn_0.1.0.beta1_iphoneos-arm64.deb
 sudo killall -9 SpringBoard
 ```
 
