@@ -21,7 +21,7 @@ pool = site / "pool"
 pool.mkdir(parents=True, exist_ok=True)
 filename = f'{metadata["Package"]}_{metadata["Version"].replace("~", ".")}_{metadata["Architecture"]}.deb'
 shutil.copyfile(source, pool / filename)
-packages = subprocess.check_output(["dpkg-scanpackages", "pool"], cwd=site)
+packages = subprocess.check_output(["dpkg-scanpackages", "pool"], cwd=site).rstrip(b"\n") + b"\n"
 (site / "Packages").write_bytes(packages)
 (site / "Packages.gz").write_bytes(gzip.compress(packages, mtime=0))
 (site / "Packages.bz2").write_bytes(bz2.compress(packages))

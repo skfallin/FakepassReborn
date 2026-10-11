@@ -15,4 +15,3 @@ Homepage: https://github.com/skfallin/FakepassReborn
 Description: Experimental software lock-screen PIN for rootless arm64e iOS 16.5.1. No native passcode, Face ID or Apple Pay support.
 Author: alexia <me@alexia.lol>
 Name: Fakepass Reborn
-
