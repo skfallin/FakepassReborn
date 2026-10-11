@@ -158,7 +158,7 @@ BOOL doUnlock(NSString *passcode) {
 
     prefs = [[NSUserDefaults alloc] initWithSuiteName:@"/var/mobile/Library/Preferences/net.cadoth.fakepass.plist"];
 
-    if (oldPasscode.length > 0 && !checkPasscode(oldPasscode)) {
+    if ((isPasscodeSet() || oldPasscode.length > 0) && !checkPasscode(oldPasscode)) {
         return NO;
     }
 

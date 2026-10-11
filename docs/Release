@@ -1,0 +1,16 @@
+Origin: Fakepass Reborn
+Label: Fakepass Reborn
+Suite: stable
+Codename: ios
+Architectures: iphoneos-arm64
+Components: main
+Description: Experimental software lock-screen PIN for iOS 16.5.1 rootless
+Date: Sun, 11 Oct 2026 06:45:28 GMT
+MD5Sum:
+ 7d767c2a0bb458aa1306c424382ad66d 996 Packages
+ c3a9da62c0dd2a27375d8757542a1c90 648 Packages.gz
+ 82fa6c3c33a676f7d9970fd431bc5d46 701 Packages.bz2
+SHA256:
+ e5500a8ea3048139a141867b650245318953564ab981cdde13511db311cef50d 996 Packages
+ 1b37a36ead8b3e6b8e8754a1a15b7899c83dc7fe65cae9055d4224ce35018f3e 648 Packages.gz
+ ddd52a0853f7a6f25dedf80223a296e281441adf85a37a0b4b636417ac966433 701 Packages.bz2

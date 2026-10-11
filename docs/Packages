@@ -1,0 +1,18 @@
+Package: com.skfallin.fakepassreborn
+Version: 0.1.0~beta2
+Architecture: iphoneos-arm64
+Maintainer: skfallin <174100212+skfallin@users.noreply.github.com>
+Installed-Size: 168
+Depends: com.opa334.libsandy (>= 1.1.6), cy+cpu.arm64e, firmware (= 16.5.1), mobilesubstrate (>= 0.9.5000), preferenceloader
+Conflicts: net.cadoth.fakepass, net.cadoth.fakepass.a12test, com.foxfort.checkl0ck, com.yourepo.plat-ykor.check4round, me.krit.lockdown, com.rpgfarm.a-shields, net.limneos.bioprotectxs-rootless
+Filename: pool/com.skfallin.fakepassreborn_0.1.0.beta2_iphoneos-arm64.deb
+Size: 14442
+MD5sum: 767e8ed324a521b52f2b880d6222c2a1
+SHA1: c669ab836bcf66386117d38cc0404f2b6f7aeaee
+SHA256: 9c40b06ae04856d6a3010c81e40fe4d656c346a980188b001a322c034ee40b04
+Section: Tweaks
+Homepage: https://github.com/skfallin/FakepassReborn
+Description: Experimental software lock-screen PIN for rootless arm64e iOS 16.5.1. No native passcode, Face ID or Apple Pay support.
+Author: alexia <me@alexia.lol>
+Name: Fakepass Reborn
+

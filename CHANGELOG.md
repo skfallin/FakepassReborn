@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.1.0-beta.2 — 2026-10-11
+
+- Require the correct old PIN for every change to an existing fake PIN, including removal. Previously a missing or empty old PIN bypassed validation.
+- Add a regression test covering PIN creation, unauthenticated removal/replacement, and authenticated change/removal. An upgrade of the private prototype preserved the existing PIN across its installation and respring on the development device on 2026-10-11; the rebranded package and persistence overnight have not been device-tested.
+- Add a Sileo package source hosted on GitHub Pages, with package indexes and checksums.
+
+This change prevents unauthenticated PIN changes; it does not fix jailbreak/tweak-injection failures. The precise cause of the earlier overnight PIN loss was not confirmed.
+
 ## 0.1.0-beta.1 — 2026-10-10
 
 First public experimental release of the rootless arm64e adaptation of FakePass 0.1.5.

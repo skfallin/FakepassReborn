@@ -1,6 +1,6 @@
 Package: com.skfallin.fakepassreborn
 Name: Fakepass Reborn
-Version: 0.1.0~beta1
+Version: 0.1.0~beta2
 Architecture: iphoneos-arm64
 Description: Experimental software lock-screen PIN for rootless arm64e iOS 16.5.1. No native passcode, Face ID or Apple Pay support.
 Maintainer: skfallin <174100212+skfallin@users.noreply.github.com>

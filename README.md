@@ -4,7 +4,7 @@ Experimental rootless **arm64e** adaptation of [FakePass by alexia](https://gith
 
 **This PIN only blocks ordinary access through the lock screen while tweak injection is active. It does not enable the native iOS passcode, add passcode-backed data encryption, restore Face ID, or enable Apple Pay.** Safe Mode, disabled injection or removal of the tweak bypasses this protection. Do not rely on it to protect sensitive data.
 
-[Download the beta](https://github.com/skfallin/FakepassReborn/releases/tag/v0.1.0-beta.1) · [Italiano](#italiano) · [Build instructions](BUILDING.md)
+[Download the beta](https://github.com/skfallin/FakepassReborn/releases/tag/v0.1.0-beta.2) · [Sileo source](https://skfallin.github.io/FakepassReborn/) · [Italiano](#italiano) · [Build instructions](BUILDING.md)
 
 ## Compatibility and validation
 
@@ -30,13 +30,19 @@ The package requires **iOS 16.5.1**, `iphoneos-arm64` packaging and `arm64e` CPU
 
 The original internal `FakePass` names and `net.cadoth.fakepass` preference domain are retained. The public package identifier is `com.skfallin.fakepassreborn`.
 
+## PIN correction in beta 2
+
+An existing PIN can now be removed or replaced only with the correct old PIN. Previously a missing or empty old PIN skipped validation. A regression test reproduces the old failure and checks the correction. An upgrade of the private prototype preserved the existing PIN after installation and respring; persistence overnight has not been verified.
+
+This does not keep tweaks loaded when the jailbreak or injection fails. If the Settings entry disappears while Sileo still lists the package as installed, check jailbreak/injection first. The exact cause of the previously observed PIN loss was not confirmed; this release does not promise to resolve every cause of lost preferences.
+
 ## Install and configure
 
 Use this only on the configuration above, with **no native iOS passcode**. First make sure you can reconnect over SSH and remove a tweak if Settings or SpringBoard stops working. On a tethered downgrade, keep the computer and boot hardware available.
 
 1. Remove other passcode/app-lock tweaks, including the original FakePass, the private FakePass A12 test package, A-Shields, Checkl0ck, Check4round, Lockdown or BioProtect. Removing an older FakePass package may clear its PIN: you will need to configure it again.
 2. In Sileo, install **PreferenceLoader** and **libSandy 1.1.6 or newer**. libSandy's official source is [`https://opa334.github.io`](https://opa334.github.io); the tested package was `1.1.6-4`. Keep ElleKit/tweak injection enabled.
-3. Download the `.deb` from the [beta release](https://github.com/skfallin/FakepassReborn/releases/tag/v0.1.0-beta.1). Install it with a local Debian-package installer such as Filza, then respring. This GitHub project is a source repository with release downloads, not a Sileo package source.
+3. In **Sileo → Sources → +**, add **`https://skfallin.github.io/FakepassReborn/`**, refresh, search for **Fakepass Reborn**, install it and respring. Alternatively, install the `.deb` from the [beta release](https://github.com/skfallin/FakepassReborn/releases/tag/v0.1.0-beta.2) with a local Debian-package installer such as Filza.
 4. Open **Settings → Fakepass Reborn**. Leave **Lock after respring** enabled.
 5. Open **Settings → Face ID & Passcode**. Continue only if the enable-passcode button is explicitly marked **(Fakepass Reborn)**. If that suffix is missing, stop: enabling the native passcode on this downgrade can cause a SEP panic.
 6. Set a six-digit PIN. Creating it may trigger a respring. Lock the screen, confirm the correct PIN works, then try one incorrect PIN and confirm it is rejected.
@@ -45,11 +51,15 @@ Use this only on the configuration above, with **no native iOS passcode**. First
 For an SSH installation, after installing the dependencies and uploading the `.deb` to the phone, run **on the iPhone**:
 
 ```sh
-sudo dpkg -i ./com.skfallin.fakepassreborn_0.1.0.beta1_iphoneos-arm64.deb
+sudo dpkg -i ./com.skfallin.fakepassreborn_0.1.0.beta2_iphoneos-arm64.deb
 sudo killall -9 SpringBoard
 ```
 
 Do not force installation if dependency or conflict checks fail. After installation, setting a fake PIN is still required.
+
+Upgrading the same public package from beta 1 to beta 2 preserves its preferences. Switching from the differently named private prototype requires removing it first, which can clear its PIN. The phone used for testing remains on the corrected private prototype; no migration is required to keep its correction.
+
+Share the source URL above so others can add it in Sileo. The source includes Fakepass Reborn only; install libSandy from its author's source, not from an unofficial copy.
 
 ## Remove or recover
 
@@ -92,6 +102,8 @@ Thanks to [opa334/libSandy](https://github.com/opa334/libSandy), [Theos](https:/
 
 Fakepass Reborn aggiunge un **PIN software alla schermata di blocco** mentre il jailbreak e l'iniezione dei tweak sono attivi. Il prototipo è stato provato su **iPhone XS Max, iOS 16.5.1, Dopamine 3.0.9-fix rootless**: codice corretto accettato, codice sbagliato rifiutato e blocco mantenuto dopo respring. Il pacchetto con il nuovo nome è stato compilato e controllato, ma non reinstallato sul telefono.
 
-Scarica il `.deb` dalla release beta, installa prima PreferenceLoader e libSandy da Sileo, poi installa il pacchetto e fai un respring. Vai in **Impostazioni → Face ID e codice** e imposta il PIN **soltanto se il pulsante mostra “(Fakepass Reborn)”**. Scegli sei cifre e verifica il blocco anche dopo un respring. Se manca quella scritta, fermati: il codice nativo su questo downgrade può causare un panic.
+In **Sileo → Sorgenti → +**, aggiungi **`https://skfallin.github.io/FakepassReborn/`**, aggiorna le sorgenti e cerca **Fakepass Reborn**. Installa prima PreferenceLoader e libSandy dalla sorgente ufficiale `https://opa334.github.io`, poi installa il tweak e fai un respring. In alternativa puoi usare il `.deb` della release. Vai in **Impostazioni → Face ID e codice** e imposta il PIN **soltanto se il pulsante mostra “(Fakepass Reborn)”**. Scegli sei cifre e verifica il blocco anche dopo un respring. Se manca quella scritta, fermati: il codice nativo su questo downgrade può causare un panic.
+
+La beta 2 richiede il vecchio PIN corretto per cancellare o sostituire un codice già presente. Il test riproduce il difetto precedente; l'aggiornamento del prototipo sul telefono ha conservato il PIN dopo il respring. Non è ancora verificata la tenuta durante la notte. La correzione non risolve la scomparsa dei tweak quando il jailbreak o l'iniezione non sono attivi. Puoi condividere direttamente l'URL della sorgente Sileo. L'aggiornamento da beta 1 a beta 2 dello stesso pacchetto conserva le preferenze; passare dal prototipo privato al pacchetto pubblico richiede invece una rimozione che può cancellare il PIN.
 
 **Face ID e carte Apple Pay non vengono ripristinati.** Biglietti e tessere con QR/barcode potrebbero funzionare, ma non sono stati verificati. Safe Mode, tweak disattivato o rimosso consentono di aggirare questo blocco; non sostituisce la sicurezza del codice iOS. Per rimuoverlo usa Sileo e fai un respring. Conserva l'accesso SSH per il recupero e l'hardware necessario all'avvio tethered.

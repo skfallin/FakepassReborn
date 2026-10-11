@@ -28,13 +28,14 @@ From this project's directory, after setting `THEOS` to your installation:
 ```sh
 export DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer
 python3 tests/check_hash.py
+python3 tests/check_passcode_changes.py
 python3 tests/check_removal.py
 gmake clean package FINALPACKAGE=1
 ```
 
 The Makefiles default to rootless packaging, arm64e, SDK 16.5 and a deployment target of 16.5. Keep the package's exact `firmware (= 16.5.1)` dependency unless testing establishes support for another version.
 
-The package is written to `packages/com.skfallin.fakepassreborn_0.1.0~beta1_iphoneos-arm64.deb`. The hash test compiles the actual hash/salt functions and compares their output with SHA-512 reference values; it checks wrong-PIN separation, nil inputs and salt format. The removal test substitutes harmless commands to verify both preference paths are cleared on removal and preserved during an upgrade. These tests do not test iOS hooks or prove lock-screen security.
+The package is written to `packages/com.skfallin.fakepassreborn_0.1.0~beta2_iphoneos-arm64.deb`. The hash test compiles the actual hash/salt functions and compares their output with SHA-512 reference values; it checks wrong-PIN separation, nil inputs and salt format. The passcode-change test runs the actual hook with in-memory preferences, checking that an existing PIN cannot be removed or replaced without the correct old PIN. The removal test substitutes harmless commands to verify both preference paths are cleared on removal and preserved during an upgrade. These tests do not test iOS hooks or prove lock-screen security.
 
 ## Package checks
 
@@ -50,3 +51,16 @@ git diff --check
 Extract the package and inspect both `FakePass.dylib` and the `FakePassPrefs` executable with `file` and `otool -L`. They must be arm64e and reference the rootless dependency paths. Check that the package includes the MIT copyright file under `/var/jb/usr/share/doc/com.skfallin.fakepassreborn/`.
 
 Only publish project source and release artifacts. Device preference files, SSH configuration, identifiers, pairing records and unredacted logs must remain local.
+
+## Sileo source
+
+The flat APT source is published from `docs/` on `main` using GitHub Pages at `https://skfallin.github.io/FakepassReborn/`. The source contains this package only. libSandy stays on its author's repository.
+
+After building a new version, use the installed `dpkg-dev` tools and Python's standard library to update the indexes:
+
+```sh
+python3 scripts/build_repository.py packages/com.skfallin.fakepassreborn_0.1.0~beta2_iphoneos-arm64.deb
+python3 tests/check_repository.py
+```
+
+Commit the package under `docs/pool/` and the generated `Packages`, compressed indexes and `Release` together. Upload that same `.deb` to the GitHub release and include its SHA-256 checksum. The Pages source must remain `main` / `docs`; `.nojekyll` keeps the APT files intact. This source uses HTTPS and package/index checksums; it does not include an APT signing key. Verify Sileo refreshes the source before announcing an update.
