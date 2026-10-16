@@ -4,7 +4,7 @@ Experimental rootless **arm64e** adaptation of [FakePass by alexia](https://gith
 
 **This PIN only blocks ordinary access through the lock screen while tweak injection is active. It does not enable the native iOS passcode, add passcode-backed data encryption, restore Face ID, or enable Apple Pay.** Safe Mode, disabled injection or removal of the tweak bypasses this protection. Do not rely on it to protect sensitive data.
 
-[Download the beta](https://github.com/skfallin/FakepassReborn/releases/tag/v0.1.0-beta.2) · [Sileo source](https://skfallin.github.io/FakepassReborn/) · [Italiano](#italiano) · [Build instructions](BUILDING.md)
+[Download the beta](https://github.com/skfallin/FakepassReborn/releases/tag/v0.1.0-beta.2) · [Dopamine Test build 4](https://github.com/skfallin/FakepassReborn/releases/tag/dopamine-test-build4) · [Sileo source](https://skfallin.github.io/FakepassReborn/) · [Italiano](#italiano) · [Build instructions](BUILDING.md)
 
 ## Compatibility and validation
 
@@ -12,6 +12,7 @@ Experimental rootless **arm64e** adaptation of [FakePass by alexia](https://gith
 | --- | --- |
 | iPhone XS Max, A12, iOS 16.5.1, surrealra1n tethered downgrade | Development prototype tested on one device |
 | Dopamine 3.0.9-fix from pwnerblu, rootless, ElleKit 1.2 | Tested configuration |
+| Dopamine Test build 4, based on that same fork | Three Hide/Show cycles passed on the development device; existing PIN retained, wrong PIN rejected, no full reboot |
 | Correct six-digit PIN, rejection of an incorrect PIN, lock after respring | Confirmed manually on the prototype |
 | Rebranded beta package | Built and checked locally; not installed on a device |
 | Other models, iOS versions, jailbreaks, rootful or roothide | Not validated; outside this beta's supported configuration |
@@ -35,6 +36,33 @@ The original internal `FakePass` names and `net.cadoth.fakepass` preference doma
 An existing PIN can now be removed or replaced only with the correct old PIN. Previously a missing or empty old PIN skipped validation. A regression test reproduces the old failure and checks the correction. An upgrade of the private prototype preserved the existing PIN after installation and respring; persistence overnight has not been verified.
 
 This does not keep tweaks loaded when the jailbreak or injection fails. If the Settings entry disappears while Sileo still lists the package as installed, check jailbreak/injection first. The exact cause of the previously observed PIN loss was not confirmed; this release does not promise to resolve every cause of lost preferences.
+
+For the reproducible **Hide Jailbreak → Show Jailbreak** failure on the tested Dopamine fork, the companion app below restores injection. The Fakepass Reborn Debian package in Sileo remains **0.1.0~beta2**; the companion release updates the Dopamine app.
+
+## Dopamine Test build 4: Hide/Show recovery
+
+This experimental companion is based on [pwnerblu/Dopamine 3.0.9-fix](https://github.com/pwnerblu/Dopamine/releases/tag/3.0.9-fix). It restores Dopamine's required permissions before changing jailbreak visibility, checks the restore operations, and resprings after **Show Jailbreak** so tweaks load again. It is an unofficial build, validated only on the XS Max / iOS 16.5.1 configuration above. It is not a general update for other Dopamine versions or devices.
+
+### Install with TrollStore
+
+Use this on an existing installation of the tested fork. **TrollStore 2.1** was used for the test. Keep the [original fork's TIPA](https://github.com/pwnerblu/Dopamine/releases/download/3.0.9-fix/Dopamine.tipa) and your tethered-boot recovery tools available. Installing this app preserves the existing FakePass package and PIN; removing FakePass is not part of this update.
+
+1. Open the [Dopamine Test build 4 release](https://github.com/skfallin/FakepassReborn/releases/tag/dopamine-test-build4) on the iPhone and copy the link to **Dopamine-HideRestore-test4.tipa**.
+2. Open **TrollStore → Apps → + → Install from URL**, paste the link below and tap **Install**. Alternatively, download the TIPA and open/share it with TrollStore.
+
+   ```text
+   https://github.com/skfallin/FakepassReborn/releases/download/dopamine-test-build4/Dopamine-HideRestore-test4.tipa
+   ```
+
+3. Confirm replacement of the existing Dopamine app if prompted. It appears as **Dopamine Test**, build **4**, with the same bundle identifier `com.opa334.Dopamine`. The jailbreak environment/basebin version stays **3.0.9**.
+4. Open **Dopamine Test → Settings**, tap **Hide Jailbreak**, then **Show Jailbreak** while staying in the app. A successful Show operation triggers an automatic respring.
+5. Check that FakePass appears in Settings and still asks for your current PIN. Try one wrong PIN, then the correct one. Repeat the Hide/Show cycle twice more, reopening Dopamine after each respring.
+
+If the app reports an error, stop and record its text. **Retry restore** attempts to restore injection even when the jailbreak already appears visible. If injection is already broken, an SSH installer using `sudo` may fail with an effective-UID/`nosuid` error; use TrollStore directly. Do not enable the native iOS passcode.
+
+On **16 October 2026**, three consecutive cycles passed on the development XS Max: FakePass returned in Settings, the wrong PIN was rejected and the existing PIN unlocked. The final Mac check confirmed the injection mount, unchanged FakePass preferences and unchanged launchd start time, so no full device reboot was needed. This test used the corrected private FakePass prototype; the public rebranded package has not been newly device-tested.
+
+**While the jailbreak is hidden, tweak injection and the software PIN are inactive.** This companion has not been validated on other devices/iOS versions or for long-term stability. [Source patch, provenance and test details](dopamine-test/README.md) are available for review. Downloads include `SHA256SUMS`.
 
 ## Install and configure
 
@@ -98,6 +126,8 @@ Thanks to [opa334/libSandy](https://github.com/opa334/libSandy), [Theos](https:/
 
 [MIT license](LICENSE), retaining the original copyright notice. libSandy and the SDK/toolchain are separate dependencies and are not bundled in this repository or release.
 
+The companion Dopamine build is based on **Lars Fröder / opa334's Dopamine** and **pwnerblu's fork**, under its [MIT license](dopamine-test/LICENSE.md). The TIPA retains its bundled dependency licenses. See [the companion notes](dopamine-test/README.md) for its exact source revision and patch.
+
 ## Italiano
 
 Fakepass Reborn aggiunge un **PIN software alla schermata di blocco** mentre il jailbreak e l'iniezione dei tweak sono attivi. Il prototipo è stato provato su **iPhone XS Max, iOS 16.5.1, Dopamine 3.0.9-fix rootless**: codice corretto accettato, codice sbagliato rifiutato e blocco mantenuto dopo respring. Il pacchetto con il nuovo nome è stato compilato e controllato, ma non reinstallato sul telefono.
@@ -105,5 +135,29 @@ Fakepass Reborn aggiunge un **PIN software alla schermata di blocco** mentre il 
 In **Sileo → Sorgenti → +**, aggiungi **`https://skfallin.github.io/FakepassReborn/`**, aggiorna le sorgenti e cerca **Fakepass Reborn**. Installa prima PreferenceLoader e libSandy dalla sorgente ufficiale `https://opa334.github.io`, poi installa il tweak e fai un respring. In alternativa puoi usare il `.deb` della release. Vai in **Impostazioni → Face ID e codice** e imposta il PIN **soltanto se il pulsante mostra “(Fakepass Reborn)”**. Scegli sei cifre e verifica il blocco anche dopo un respring. Se manca quella scritta, fermati: il codice nativo su questo downgrade può causare un panic.
 
 La beta 2 richiede il vecchio PIN corretto per cancellare o sostituire un codice già presente. Il test riproduce il difetto precedente; l'aggiornamento del prototipo sul telefono ha conservato il PIN dopo il respring. Non è ancora verificata la tenuta durante la notte. La correzione non risolve la scomparsa dei tweak quando il jailbreak o l'iniezione non sono attivi. Puoi condividere direttamente l'URL della sorgente Sileo. L'aggiornamento da beta 1 a beta 2 dello stesso pacchetto conserva le preferenze; passare dal prototipo privato al pacchetto pubblico richiede invece una rimozione che può cancellare il PIN.
+
+### Dopamine Test build 4: ripristino dopo Nascondi/Mostra
+
+Per il problema riprodotto usando **Nascondi jailbreak → Mostra jailbreak**, è disponibile [Dopamine Test build 4](https://github.com/skfallin/FakepassReborn/releases/tag/dopamine-test-build4). È una variante sperimentale di **pwnerblu/Dopamine 3.0.9-fix**, provata solo su XS Max con iOS 16.5.1. Recupera i permessi necessari dell'app, controlla il ripristino dell'iniezione ed esegue un respring dopo Mostra. La versione del tweak Fakepass Reborn in Sileo rimane **0.1.0~beta2**.
+
+Usala se hai già il fork indicato e TrollStore installato; per la prova è stato usato **TrollStore 2.1**. Conserva il [TIPA originale](https://github.com/pwnerblu/Dopamine/releases/download/3.0.9-fix/Dopamine.tipa) e gli strumenti per l'avvio tethered. Questo aggiornamento dell'app conserva il pacchetto FakePass e il PIN già configurato.
+
+1. Apri la [nuova release](https://github.com/skfallin/FakepassReborn/releases/tag/dopamine-test-build4) sull'iPhone e copia il link di **Dopamine-HideRestore-test4.tipa**.
+2. Vai in **TrollStore → Apps → + → Install from URL**, incolla questo indirizzo e premi **Install**:
+
+   ```text
+   https://github.com/skfallin/FakepassReborn/releases/download/dopamine-test-build4/Dopamine-HideRestore-test4.tipa
+   ```
+
+   In alternativa scarica il TIPA e aprilo/condividilo con TrollStore.
+3. Conferma la sostituzione di Dopamine, se richiesta. L'app si chiamerà **Dopamine Test**, build **4**; l'ambiente del jailbreak rimane alla versione **3.0.9**.
+4. Apri **Dopamine Test → Impostazioni** e premi **Nascondi jailbreak**, poi **Mostra jailbreak**, restando nell'app. Dopo Mostra è previsto un respring automatico.
+5. Controlla che FakePass ricompaia nelle Impostazioni e che il PIN attuale funzioni; prova un solo PIN sbagliato e poi quello corretto. Ripeti altre due volte il ciclo, riaprendo Dopamine dopo ogni respring.
+
+Se compare un errore, fermati e conserva il testo; **Retry restore** riprova il ripristino dell'iniezione. Se l'iniezione è già guasta e l'installer SSH segnala un errore di UID/`nosuid`, usa direttamente TrollStore. **Non attivare il codice nativo di iOS.**
+
+Il **16 ottobre 2026** sono riusciti tre cicli consecutivi sul prototipo XS Max: PIN conservato, codice sbagliato rifiutato e nessun riavvio completo. Il controllo dal Mac ha confermato montaggio dell'iniezione e preferenze invariate. Il pacchetto pubblico con il nuovo nome non è stato reinstallato per questa prova. Non sono verificati altri dispositivi, altre versioni o la stabilità nel tempo. [Patch e dettagli tecnici](dopamine-test/README.md).
+
+**Quando nascondi il jailbreak, l'iniezione e il PIN software sono inattivi.**
 
 **Face ID e carte Apple Pay non vengono ripristinati.** Biglietti e tessere con QR/barcode potrebbero funzionare, ma non sono stati verificati. Safe Mode, tweak disattivato o rimosso consentono di aggirare questo blocco; non sostituisce la sicurezza del codice iOS. Per rimuoverlo usa Sileo e fai un respring. Conserva l'accesso SSH per il recupero e l'hardware necessario all'avvio tethered.

@@ -1,0 +1,425 @@
+diff --git a/Application/Dopamine/Jailbreak/DOEnvironmentManager.h b/Application/Dopamine/Jailbreak/DOEnvironmentManager.h
+index 0d265bd..e2a54df 100644
+--- a/Application/Dopamine/Jailbreak/DOEnvironmentManager.h
++++ b/Application/Dopamine/Jailbreak/DOEnvironmentManager.h
+@@ -68,7 +68,7 @@ NS_ASSUME_NONNULL_BEGIN
+ - (int)setFakelibMounted:(BOOL)mounted;
+ - (int)setPrivatePrebootProtected:(BOOL)protected;
+ - (BOOL)isJailbreakHidden;
+-- (void)setJailbreakHidden:(BOOL)hidden;
++- (NSError * _Nullable)setJailbreakHidden:(BOOL)hidden;
+ 
+ - (BOOL)isPACBypassRequired;
+ - (BOOL)isPPLBypassRequired;
+diff --git a/Application/Dopamine/Jailbreak/DOEnvironmentManager.m b/Application/Dopamine/Jailbreak/DOEnvironmentManager.m
+index cce0ca4..bdde43c 100644
+--- a/Application/Dopamine/Jailbreak/DOEnvironmentManager.m
++++ b/Application/Dopamine/Jailbreak/DOEnvironmentManager.m
+@@ -12,6 +12,7 @@
+ #import <sys/mount.h>
+ #import <sys/utsname.h>
+ #import <sys/stat.h>
++#import <errno.h>
+ #import <unistd.h>
+ #import <mach-o/dyld.h>
+ #import <libgrabkernel2/libgrabkernel2.h>
+@@ -640,45 +641,101 @@ - (BOOL)isJailbreakHidden
+     return ![[NSFileManager defaultManager] fileExistsAtPath:@"/var/jb"];
+ }
+ 
+-- (void)setJailbreakHidden:(BOOL)hidden
++- (NSError *)setJailbreakHidden:(BOOL)hidden
+ {
+     if (hidden && ![self isJailbroken] && geteuid() != 0) {
+-        [self runTrollStoreAction:@"hide-jailbreak"];
+-        return;
++        int result = [self runTrollStoreAction:@"hide-jailbreak"];
++        return result == 0 ? nil : [NSError errorWithDomain:@"Dopamine.HideJailbreak" code:result userInfo:@{NSLocalizedDescriptionKey: @"Could not hide the jailbreak."}];
+     }
+-    
+-    void (^actionBlock)(void) = ^{
+-        BOOL alreadyHidden = [self isJailbreakHidden];
+-        if (hidden != alreadyHidden) {
++
++    BOOL alreadyHidden = [self isJailbreakHidden];
++    if (hidden && alreadyHidden) return nil;
++
++    if ([self isJailbroken]) {
++        uint32_t csFlags = 0;
++        int result = csops(getpid(), CS_OPS_STATUS, &csFlags, sizeof(csFlags));
++        if (result != 0 || !(csFlags & CS_PLATFORM_BINARY)) {
++            // Dopamine can relaunch without systemhook after hiding; check in before changing mounts.
++            result = jbclient_process_checkin(NULL, NULL, NULL, NULL, NULL);
++            if (result != 0 || csops(getpid(), CS_OPS_STATUS, &csFlags, sizeof(csFlags)) != 0 || !(csFlags & CS_PLATFORM_BINARY)) {
++                return [NSError errorWithDomain:@"Dopamine.HideJailbreak" code:result ?: EACCES userInfo:@{NSLocalizedDescriptionKey: @"Could not restore Dopamine's jailbreak permissions. Jailbreak visibility was not changed."}];
++            }
++        }
++    }
++
++    // jbctl must finish after all temporary app credentials have been restored.
++    if (hidden && [self isJailbroken]) {
++        [self unregisterJailbreakApps];
++        int result = [self setPrivatePrebootProtected:NO];
++        if (result != 0) {
++            return [NSError errorWithDomain:@"Dopamine.HideJailbreak" code:result userInfo:@{NSLocalizedDescriptionKey: @"Could not prepare the jailbreak for hiding."}];
++        }
++        result = [self setFakelibMounted:NO];
++        if (result != 0 || [self isFakelibMounted]) {
++            [self setPrivatePrebootProtected:YES];
++            return [NSError errorWithDomain:@"Dopamine.HideJailbreak" code:result ?: EIO userInfo:@{NSLocalizedDescriptionKey: @"Could not disable jailbreak injection."}];
++        }
++        result = jbclient_platform_set_systemwide_domain_enabled(false);
++        if (result < 0) {
++            [self setFakelibMounted:YES];
++            [self setPrivatePrebootProtected:YES];
++            [self refreshJailbreakApps];
++            return [NSError errorWithDomain:@"Dopamine.HideJailbreak" code:result userInfo:@{NSLocalizedDescriptionKey: @"Could not hide the jailbreak services."}];
++        }
++    }
++
++    __block NSError *fileError = nil;
++    if (hidden != alreadyHidden) {
++        fileError = [NSError errorWithDomain:@"Dopamine.HideJailbreak" code:EACCES userInfo:@{NSLocalizedDescriptionKey: @"Could not obtain permission to change jailbreak visibility."}];
++        void (^fileBlock)(void) = ^{
++            fileError = nil;
+             if (hidden) {
+-                if ([self isJailbroken]) {
+-                    [self unregisterJailbreakApps];
+-                    [self setPrivatePrebootProtected:NO];
+-                    [self setFakelibMounted:NO];
+-                    jbclient_platform_set_systemwide_domain_enabled(false);
+-                }
+-                [[NSFileManager defaultManager] removeItemAtPath:@"/var/jb" error:nil];
++                [[NSFileManager defaultManager] removeItemAtPath:@"/var/jb" error:&fileError];
+             }
+             else {
+-                [[NSFileManager defaultManager] createSymbolicLinkAtPath:@"/var/jb" withDestinationPath:JBROOT_PATH(@"/") error:nil];
+-                if ([self isJailbroken]) {
+-                    jbclient_platform_set_systemwide_domain_enabled(true);
+-                    [self setFakelibMounted:YES];
+-                    [self setPrivatePrebootProtected:YES];
+-                    [self refreshJailbreakApps];
+-                }
++                [[NSFileManager defaultManager] createSymbolicLinkAtPath:@"/var/jb" withDestinationPath:JBROOT_PATH(@"/") error:&fileError];
+             }
++        };
++        if ([self isJailbroken]) {
++            [self runAsRoot:^{
++                [self runUnsandboxed:fileBlock];
++            }];
++        }
++        else {
++            fileBlock();
++        }
++        if (!fileError && [self isJailbreakHidden] != hidden) {
++            fileError = [NSError errorWithDomain:@"Dopamine.HideJailbreak" code:EIO userInfo:@{NSLocalizedDescriptionKey: @"Jailbreak visibility did not change."}];
++        }
++        if (fileError) {
++            if (hidden && [self isJailbroken]) {
++                jbclient_platform_set_systemwide_domain_enabled(true);
++                [self setFakelibMounted:YES];
++                [self setPrivatePrebootProtected:YES];
++                [self refreshJailbreakApps];
++            }
++            return fileError;
+         }
+-    };
+-    
+-    if ([self isJailbroken]) {
+-        [self runAsRoot:^{
+-            [self runUnsandboxed:actionBlock];
+-        }];
+     }
+-    else {
+-        actionBlock();
++
++    // Also allow retrying a partial restore where /var/jb is already visible.
++    if (!hidden && [self isJailbroken]) {
++        // The 3.0.9 void RPC handler echoes the enabled flag; negative values indicate failure.
++        int result = jbclient_platform_set_systemwide_domain_enabled(true);
++        if (result < 0) {
++            return [NSError errorWithDomain:@"Dopamine.HideJailbreak" code:result userInfo:@{NSLocalizedDescriptionKey: @"Could not restore the jailbreak services."}];
++        }
++        result = [self setFakelibMounted:YES];
++        if (result != 0 || ![self isFakelibMounted]) {
++            return [NSError errorWithDomain:@"Dopamine.HideJailbreak" code:result ?: EIO userInfo:@{NSLocalizedDescriptionKey: @"Could not restore jailbreak injection. Tweaks are not active."}];
++        }
++        result = [self setPrivatePrebootProtected:YES];
++        if (result != 0) {
++            return [NSError errorWithDomain:@"Dopamine.HideJailbreak" code:result userInfo:@{NSLocalizedDescriptionKey: @"Could not restore preboot protection."}];
++        }
++        [self refreshJailbreakApps];
+     }
++    return nil;
+ }
+ 
+ - (NSString *)accessibleKernelPath
+diff --git a/Application/Dopamine/UI/Settings/DOSettingsController.m b/Application/Dopamine/UI/Settings/DOSettingsController.m
+index b0ece9d..003df7c 100644
+--- a/Application/Dopamine/UI/Settings/DOSettingsController.m
++++ b/Application/Dopamine/UI/Settings/DOSettingsController.m
+@@ -710,8 +710,25 @@ - (void)changeMobilePassword
+ - (void)hideUnhideJailbreakPressed
+ {
+     DOEnvironmentManager *envManager = [DOEnvironmentManager sharedManager];
+-    [envManager setJailbreakHidden:!envManager.isJailbreakHidden];
++    [self changeJailbreakVisibility:!envManager.isJailbreakHidden];
++}
++
++- (void)changeJailbreakVisibility:(BOOL)hidden
++{
++    DOEnvironmentManager *envManager = [DOEnvironmentManager sharedManager];
++    NSError *error = [envManager setJailbreakHidden:hidden];
+     [self reloadSpecifiers];
++    if (error) {
++        UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"Jailbreak visibility" message:error.localizedDescription preferredStyle:UIAlertControllerStyleAlert];
++        [alert addAction:[UIAlertAction actionWithTitle:@"Retry restore" style:UIAlertActionStyleDefault handler:^(UIAlertAction *action) {
++            [self changeJailbreakVisibility:NO];
++        }]];
++        [alert addAction:[UIAlertAction actionWithTitle:DOLocalizedString(@"Button_Cancel") style:UIAlertActionStyleCancel handler:nil]];
++        [self presentViewController:alert animated:YES completion:nil];
++    }
++    else if (!hidden && envManager.isJailbroken) {
++        [envManager respring];
++    }
+ }
+ 
+ - (void)removeJailbreakPressed
+diff --git a/Application/Dopamine/main.m b/Application/Dopamine/main.m
+index e9d939c..c288eb6 100644
+--- a/Application/Dopamine/main.m
++++ b/Application/Dopamine/main.m
+@@ -19,7 +19,11 @@ int main(int argc, char * argv[]) {
+                 [[DOEnvironmentManager sharedManager] deleteBootstrap];
+             }
+             else if (!strcmp(argv[2], "hide-jailbreak")) {
+-                [[DOEnvironmentManager sharedManager] setJailbreakHidden:YES];
++                NSError *error = [[DOEnvironmentManager sharedManager] setJailbreakHidden:YES];
++                if (error) {
++                    fprintf(stderr, "%s\n", error.localizedDescription.UTF8String);
++                    return 1;
++                }
+             }
+             return 0;
+         }
+diff --git a/tests/check_hide_restore.py b/tests/check_hide_restore.py
+new file mode 100644
+index 0000000..ffe06d0
+--- /dev/null
++++ b/tests/check_hide_restore.py
+@@ -0,0 +1,215 @@
++#!/usr/bin/env python3
++"""Exercise the real hide/unhide method with mocked device operations on macOS."""
++from pathlib import Path
++import subprocess
++import tempfile
++
++root = Path(__file__).resolve().parents[1]
++source = (root / "Application/Dopamine/Jailbreak/DOEnvironmentManager.m").read_text()
++start = source.index("setJailbreakHidden:(BOOL)hidden")
++start = source.rfind("\n- (", 0, start) + 1
++body = source.index("{", start)
++depth = 1
++end = body + 1
++while depth:
++    depth += (source[end] == "{") - (source[end] == "}")
++    end += 1
++method = source[start:end].replace("NSFileManager", "TestFileManager")
++returns_error = method.startswith("- (NSError")
++signature = method[:method.index("{")].strip() + ";"
++call = "NSError *error = [env setJailbreakHidden:hidden];" if returns_error else "[env setJailbreakHidden:hidden]; NSError *error = nil;"
++
++harness = r'''
++#import <Foundation/Foundation.h>
++#include <errno.h>
++#include <unistd.h>
++
++static int rootDepth, sandboxDepth, mountFailure, domainFailure, protectionFailure;
++static BOOL visible, mounted, domainEnabled, protected, fileFailure, rootDenied, mountNoop, fileNoop;
++static BOOL platformBinary, checkinNoop, csopsFailure;
++static int checkinFailure, checkinCount;
++static BOOL jailbroken = YES;
++static int refreshCount, unregisterCount;
++#define CHECK(c) do { if (!(c)) { fprintf(stderr, "Failed: %s (line %d)\n", #c, __LINE__); exit(1); } } while (0)
++#define JBROOT_PATH(path) @"/private/test-jb"
++#define geteuid() 501
++#define CS_OPS_STATUS 0
++#define CS_PLATFORM_BINARY 0x04000000
++
++static int csops(pid_t pid, unsigned int op, void *value, size_t size) {
++    if (csopsFailure) return -1;
++    *(uint32_t *)value = platformBinary ? CS_PLATFORM_BINARY : 0;
++    return 0;
++}
++
++static int jbclient_process_checkin(char **root, char **boot, char **extensions, bool *debugged, bool *adhoc) {
++    CHECK(rootDepth == 0 && sandboxDepth == 0);
++    CHECK(unregisterCount == 0 && refreshCount == 0);
++    checkinCount++;
++    if (checkinFailure) return checkinFailure;
++    if (!checkinNoop) platformBinary = YES;
++    return 0;
++}
++
++static int jbclient_platform_set_systemwide_domain_enabled(BOOL enabled) {
++    if (!platformBinary) return -2;
++    if (domainFailure) return domainFailure;
++    domainEnabled = enabled;
++    return enabled;
++}
++
++@interface TestFileManager : NSObject
+++ (instancetype)defaultManager;
++- (BOOL)removeItemAtPath:(NSString *)path error:(NSError **)error;
++- (BOOL)createSymbolicLinkAtPath:(NSString *)path withDestinationPath:(NSString *)destination error:(NSError **)error;
++@end
++@implementation TestFileManager
+++ (instancetype)defaultManager { static id manager; if (!manager) manager = [self new]; return manager; }
++- (BOOL)removeItemAtPath:(NSString *)path error:(NSError **)error {
++    CHECK(!jailbroken || (rootDepth > 0 && sandboxDepth > 0));
++    if (fileFailure) { if (error) *error = [NSError errorWithDomain:NSPOSIXErrorDomain code:EACCES userInfo:nil]; return NO; }
++    if (!fileNoop) visible = NO; return YES;
++}
++- (BOOL)createSymbolicLinkAtPath:(NSString *)path withDestinationPath:(NSString *)destination error:(NSError **)error {
++    CHECK(!jailbroken || (rootDepth > 0 && sandboxDepth > 0));
++    if (fileFailure) { if (error) *error = [NSError errorWithDomain:NSPOSIXErrorDomain code:EACCES userInfo:nil]; return NO; }
++    if (!fileNoop) visible = YES; return YES;
++}
++@end
++
++@interface DOEnvironmentManager : NSObject
++- (BOOL)isJailbroken;
++- (BOOL)isJailbreakHidden;
++- (BOOL)isInstalledThroughTrollStore;
++- (BOOL)isFakelibMounted;
++- (int)runTrollStoreAction:(NSString *)action;
++- (void)runAsRoot:(void (^)(void))block;
++- (void)runUnsandboxed:(void (^)(void))block;
++- (int)setFakelibMounted:(BOOL)value;
++- (int)setPrivatePrebootProtected:(BOOL)value;
++- (void)refreshJailbreakApps;
++- (void)unregisterJailbreakApps;
++METHOD_SIGNATURE
++@end
++@implementation DOEnvironmentManager
++- (BOOL)isJailbroken { return jailbroken; }
++- (BOOL)isJailbreakHidden { return !visible; }
++- (BOOL)isInstalledThroughTrollStore { return YES; }
++- (BOOL)isFakelibMounted { return mounted; }
++- (int)runTrollStoreAction:(NSString *)action { visible = NO; return 0; }
++- (void)runAsRoot:(void (^)(void))block { if (rootDenied) return; rootDepth++; block(); rootDepth--; }
++- (void)runUnsandboxed:(void (^)(void))block { sandboxDepth++; block(); sandboxDepth--; }
++- (int)setFakelibMounted:(BOOL)value {
++    // jbctl's wait handshake must run after the app has restored its credentials.
++    CHECK(rootDepth == 0 && sandboxDepth == 0);
++    if (mountFailure) return mountFailure;
++    if (!mountNoop) mounted = value; return 0;
++}
++- (int)setPrivatePrebootProtected:(BOOL)value {
++    CHECK(rootDepth == 0 && sandboxDepth == 0);
++    if (protectionFailure) return protectionFailure;
++    protected = value; return 0;
++}
++- (void)refreshJailbreakApps { CHECK(rootDepth == 0); refreshCount++; }
++- (void)unregisterJailbreakApps { CHECK(rootDepth == 0); unregisterCount++; }
++METHOD_BODY
++@end
++
++static NSError *change(DOEnvironmentManager *env, BOOL hidden) {
++    METHOD_CALL
++    CHECK(rootDepth == 0 && sandboxDepth == 0);
++    return error;
++}
++
++static void reset(BOOL hidden) {
++    visible = mounted = domainEnabled = protected = !hidden;
++    fileFailure = rootDenied = mountNoop = fileNoop = NO;
++    mountFailure = domainFailure = protectionFailure = 0;
++    refreshCount = unregisterCount = rootDepth = sandboxDepth = 0;
++    jailbroken = YES;
++    platformBinary = YES;
++    checkinNoop = csopsFailure = NO;
++    checkinFailure = checkinCount = 0;
++}
++
++int main(void) { @autoreleasepool {
++    DOEnvironmentManager *env = [DOEnvironmentManager new];
++    reset(YES);
++    CHECK(change(env, NO) == nil);
++    CHECK(visible && mounted && domainEnabled && protected && refreshCount == 1);
++    CHECK(change(env, YES) == nil);
++    CHECK(!visible && !mounted && !domainEnabled && !protected);
++    CHECK(change(env, NO) == nil);
++    CHECK(visible && mounted && domainEnabled && protected);
++
++    // Every app relaunch may lack systemhook, including while the jailbreak is hidden.
++    reset(NO);
++    for (int cycle = 0; cycle < 3; cycle++) {
++        platformBinary = NO; unregisterCount = refreshCount = 0;
++        CHECK(change(env, YES) == nil);
++        CHECK(!visible && !mounted && !domainEnabled && !protected);
++        platformBinary = NO; unregisterCount = refreshCount = 0;
++        CHECK(change(env, NO) == nil);
++        CHECK(visible && mounted && domainEnabled && protected);
++    }
++    CHECK(checkinCount == 6);
++    for (int failure = 0; failure < 3; failure++) {
++        reset(NO); platformBinary = NO;
++        if (failure == 0) checkinFailure = -2;
++        if (failure == 1) checkinNoop = YES;
++        if (failure == 2) csopsFailure = YES;
++        CHECK(change(env, YES) != nil);
++        CHECK(visible && mounted && domainEnabled && protected);
++        CHECK(unregisterCount == 0 && refreshCount == 0);
++    }
++
++    // A failed earlier restore may have recreated /var/jb without restoring injection.
++    reset(NO); mounted = domainEnabled = protected = NO;
++    CHECK(change(env, NO) == nil);
++    CHECK(mounted && domainEnabled && protected && refreshCount == 1);
++
++    reset(YES); fileFailure = YES;
++    CHECK(change(env, NO) != nil);
++    CHECK(!visible && !mounted && refreshCount == 0);
++    reset(YES); rootDenied = YES;
++    CHECK(change(env, NO) != nil);
++    CHECK(!visible && !mounted && refreshCount == 0);
++    reset(YES); fileNoop = YES;
++    CHECK(change(env, NO) != nil);
++    CHECK(!visible && !mounted && refreshCount == 0);
++    reset(YES); domainFailure = -1;
++    CHECK(change(env, NO) != nil);
++    CHECK(!mounted && refreshCount == 0);
++    reset(YES); mountFailure = EIO;
++    CHECK(change(env, NO) != nil);
++    CHECK(!mounted && refreshCount == 0);
++    mountFailure = 0;
++    CHECK(change(env, NO) == nil);
++    CHECK(mounted && protected && refreshCount == 1);
++    reset(YES); protectionFailure = EIO;
++    CHECK(change(env, NO) != nil);
++    CHECK(refreshCount == 0);
++    reset(YES); mountNoop = YES;
++    CHECK(change(env, NO) != nil);
++    CHECK(!mounted && refreshCount == 0);
++    reset(NO); fileFailure = YES;
++    CHECK(change(env, YES) != nil);
++    CHECK(visible && mounted && domainEnabled && protected && refreshCount == 1);
++    reset(NO); mountNoop = YES;
++    CHECK(change(env, YES) != nil);
++    CHECK(visible && mounted && domainEnabled && protected);
++    reset(NO); domainFailure = -1;
++    CHECK(change(env, YES) != nil);
++    CHECK(visible && mounted && domainEnabled && protected);
++    reset(YES); jailbroken = NO;
++    CHECK(change(env, NO) == nil);
++    CHECK(visible && !mounted && !domainEnabled && !protected);
++    puts("Hide/unhide sequencing, retry and error checks passed (mocked device operations).");
++} }
++'''.replace("METHOD_SIGNATURE", signature).replace("METHOD_BODY", method).replace("METHOD_CALL", call)
++
++with tempfile.TemporaryDirectory(prefix="dopamine-hide-test-") as temporary:
++    path = Path(temporary)
++    (path / "test.m").write_text(harness)
++    subprocess.run(["xcrun", "--sdk", "macosx", "clang", "-fobjc-arc", "-fblocks", "-framework", "Foundation", str(path / "test.m"), "-o", str(path / "test")], check=True)
++    subprocess.run([str(path / "test")], check=True)

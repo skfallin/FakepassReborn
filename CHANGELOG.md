@@ -1,5 +1,17 @@
 # Changelog
 
+## Dopamine Test build 4 — 2026-10-16
+
+Companion app release tagged `dopamine-test-build4`, based on pwnerblu/Dopamine `3.0.9-fix` at `01a1d49b59b81c7ae48cba08759abcaabd2d947a`. The Fakepass Reborn Debian package remains `0.1.0~beta2`.
+
+- Restore and verify Dopamine's platform permission before changing jailbreak visibility, including after relaunch without systemhook.
+- Run mount/protection helpers after the app's temporary credentials have been restored; check command results, mount state and the `/var/jb` link.
+- Offer Retry restore on error and respring after a successful Show operation to reload tweaks.
+- Publish the tested TIPA, source patch, regression test, upstream license and checksums; add English and Italian TrollStore installation instructions.
+- Three consecutive Hide/Show cycles passed on one XS Max / iOS 16.5.1 development device using the corrected private FakePass prototype. Wrong PIN rejected, current PIN accepted, preferences preserved and no full reboot confirmed. The public rebranded package, other configurations and long-term stability were not newly device-tested.
+
+The software PIN remains inactive while the jailbreak is hidden or injection is disabled.
+
 ## 0.1.0-beta.2 — 2026-10-11
 
 - Require the correct old PIN for every change to an existing fake PIN, including removal. Previously a missing or empty old PIN bypassed validation.
